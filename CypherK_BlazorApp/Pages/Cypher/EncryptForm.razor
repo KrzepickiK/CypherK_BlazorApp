@@ -1,0 +1,162 @@
+﻿@using CypherK_BlazorApp.Data.ViewModels
+@using CypherK_Services
+@using BlazorPro.Spinkit
+
+<div class="" id="encryptTab" aria-labelledby="encrypt-tab">
+    <div class="row">
+        <div class="col">
+            <h3 class="cypher-heading">Zaszyfruj wiadomość</h3>
+            @if (showSuccess)
+            {
+                <div class="alert alert-success alert-dismissible fade show" role="alert">
+                    <strong>Sukces!</strong> Wiadomość została wysłana.
+                    <button type="button" @onclick="()=>showSuccess=false" class="close" data-dismiss="alert" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+            }
+
+            @if (showFail)
+            {
+                <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                    <strong>Wystąpił błąd :(</strong> Wiadomość <b>NIE</b> została wysłana. 
+                    <hr />
+                    Spróbuj jeszcze raz
+                    <button type="button" @onclick="()=>showFail=false" class="close" data-dismiss="alert" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+            }
+
+        </div>
+    </div>
+    <div class="row cypher-form">
+
+        @if (loading)
+        {
+            <div class="col-md-12">
+                <Grid Size="100px" Center="true" Color="#2F4BBD" />
+            </div>
+        }
+        else
+        {
+            <div class="col-md-6">
+                <div class="form-group">
+                    <textarea @bind="@vm.TextToEncrypt" rows="15" type="text" class="form-control" placeholder="Tutaj podaj tekst do zaszyfrowania...."></textarea>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <EditForm Model="@vm" OnValidSubmit="HandleValidSubmit">
+                    <span>
+                        <DataAnnotationsValidator />
+                        <ValidationSummary />
+                    </span>
+                    <div class="form-group">
+                        <InputText id="CypherKey" @bind-Value="vm.CypherKey" class="form-control" placeholder="* Klucz szyfrujący (hasło)" />
+                    </div>
+                    <div class="form-group">
+                        <InputText id="AuthorEmail" @bind-Value="vm.AuthorEmail" class="form-control" placeholder="* Twój email" />
+                    </div>
+                    <div class="form-group">
+                        <InputSelect @bind-Value="vm.SelectedAlgorithm" class="form-control">
+                            <option class="hidden" selected disabled>Wybierz algorytm</option>
+                            @foreach (var alg in vm.Algorithms)
+                            {
+                                <option value="@alg.Key">@alg.Value</option>
+                            }
+                        </InputSelect>
+                    </div>
+                    <div class="form-group">
+                        <InputText id="ReceiverEmail" @bind-Value="vm.ReceiverEmail" class="form-control" placeholder="* Email odbiorcy" />
+                    </div>
+                    <div class="form-group">
+                        <div class="maxl">
+                            <label class="radio inline" style="cursor: pointer;">
+                                <input type="radio" name="messageType" id="messageType-msg" value="msg" @onchange="SelectionChanged" checked=@(messageType.Equals("msg",StringComparison.OrdinalIgnoreCase)) />
+                                <span class="font-weight-bold"> Wyślij wiadomość </span>
+                                <small style="display: block;">* wiadomość nie będzie przechowywana na serwerach aplikacji</small>
+                            </label>
+                            <label class="radio inline" style="cursor: pointer;">
+                                <input type="radio" name="messageType" id="messageType-link" value="link" @onchange="SelectionChanged" checked=@(messageType.Equals("link",StringComparison.OrdinalIgnoreCase)) />
+                                <span class="font-weight-bold">Wyślij link do wiadomości </span>
+                                <small style="display: block;">* wiadomość będzie przechowywana na serwerach maksymalnie 14 dni</small>
+                            </label>
+                        </div>
+                    </div>
+                    <input type="submit" class="btn-cypher btn-cypher-send" value="Wyślij" />
+                    <input type="button" @onclick="PreviewSubmit" class="btn-cypher btn-cypher-preview" value="Podgląd" />
+                </EditForm>
+            </div>
+        }
+
+    </div>
+</div>
+
+<CypherK_BlazorApp.Shared.Modal @ref="Modal"></CypherK_BlazorApp.Shared.Modal>
+
+
+@code {
+
+    private CypherK_BlazorApp.Shared.Modal Modal { get; set; }
+
+    private EncryptViewModel vm = new EncryptViewModel();
+    private CryptoService cs = new CryptoService();
+    string messageType = "link";
+    bool loading = false;
+    bool showSuccess = false;
+    bool showFail = false;
+    string encryptedPreview = "";
+
+    private async Task HandleValidSubmit()
+    {
+        bool status = false;
+
+        loading = true;
+
+        string encryptedTxt = await Task.Run(() => GetEncryptedText(vm.TextToEncrypt, vm.CypherKey));
+
+        if (messageType == "link")
+        {
+            status = await Task.Run(() => cs.SendEmailLink(encryptedTxt, vm.ReceiverEmail));
+        }
+        else if (messageType == "msg")
+        {
+            status = await Task.Run(() => cs.SendEmailMessage(encryptedTxt, vm.ReceiverEmail));
+        }
+
+        loading = false;
+        showSuccess = status;
+        showFail = !status;
+    }
+
+    private async Task PreviewSubmit()
+    {
+        loading = true;
+        encryptedPreview = await Task.Run(() => GetEncryptedText(vm.TextToEncrypt, vm.CypherKey));
+        loading = false;
+        Modal.Title = "Podgląd zaszyfrowanego tekstu.";
+        Modal.Body = encryptedPreview;
+        Modal.BtnCloseText = "Zamknij podgląd";
+        Modal.Open();
+    }
+
+    void SelectionChanged(ChangeEventArgs args)
+    {
+        messageType = args.Value.ToString();
+    }
+
+    private async Task<string> GetEncryptedText(string text, string key)
+    {
+        switch (vm.SelectedAlgorithm)
+        {
+            case "bacon":
+                return await Task.Run(() => cs.EncryptBaconAsync(text, key));
+            case "cezar":
+                return await Task.Run(() => cs.EncryptCezarAsync(text, key));
+            case "aes":
+                return await Task.Run(() => cs.EncryptAesAsync(text, key));
+            default:
+                return "Nie wybrano algorytmu szyfrującego!";
+        }
+    }
+}

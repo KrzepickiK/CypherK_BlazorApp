@@ -1,0 +1,24 @@
+﻿
+<ul class="nav nav-tabs nav-justified" id="myTab" role="tablist">
+    <li class="nav-item">
+        <a href="#encryptTab" @onclick="()=>encrypt=true"  @onclick:preventDefault class="nav-link @( encrypt ? "active" : "")" id="encrypt-tab" aria-controls="encrypt" aria-selected="@encrypt">Zaszyfruj</a>
+    </li>
+    <li class="nav-item">
+        <a href="#decryptTab" @onclick="()=>encrypt=false" @onclick:preventDefault class="nav-link @( !encrypt ? "active" : "")" id="decrypt-tab" aria-controls="decrypt" aria-selected="@(!encrypt)">Odszyfruj</a>
+    </li>
+</ul>
+
+<div class="tab-content" id="encryptDecryptTab">
+    @if (encrypt)
+    {
+        <EncryptForm />
+    }
+    else
+    {
+        <DecryptForm />
+    }
+</div>
+
+@code {
+    private bool encrypt = true;
+}

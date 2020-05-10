@@ -1,0 +1,136 @@
+﻿@using CypherK_BlazorApp.Data.ViewModels
+@using CypherK_Services
+@using BlazorPro.Spinkit
+
+    <div class="" id="decryptTab">
+        <div class="row">
+            <div class="col-md-12">
+                <h3 class="cypher-heading">Odszyfruj wiadomość</h3>
+            </div>
+        </div>
+        <div class="row cypher-form">
+            @if (loading)
+            {
+                <div class="col-md-12">
+                    <Grid Size="100px" Center="true" Color="#2F4BBD" />
+                </div>
+            }
+            else
+            {
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <textarea @bind="@vm.TextToDecrypt" rows="15" type="text" class="form-control" placeholder="Tutaj podaj zaszyfrowany tekst...."></textarea>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <EditForm Model="@vm" OnValidSubmit="HandleValidSubmit">
+                        <span>
+                            <DataAnnotationsValidator />
+                            <ValidationSummary />
+                        </span>
+                        <div class="form-group">
+                            <InputText id="CypherKey" @bind-Value="vm.CypherKey" class="form-control" placeholder="* Klucz szyfrujący (hasło)" />
+                        </div>
+                        <div class="form-group">
+                            <InputSelect @bind-Value="vm.SelectedAlgorithm" class="form-control">
+                                @foreach (var alg in vm.Algorithms)
+                                {
+                                    <option value="@alg.Key">@alg.Value</option>
+                                }
+                            </InputSelect>
+                        </div>
+                        @if (showReceiverEmail)
+                        {
+                            <div class="form-group">
+                                <InputText id="ReceiverEmail" @bind-Value="vm.ReceiverEmail" class="form-control" placeholder="* Email odbiorcy" />
+                            </div>
+                        }
+                        <div class="form-group">
+                            <div class="maxl">
+                                <label class="radio inline" style="cursor: pointer;">
+                                    <input type="radio" name="resultAs" id="resultAs-msg" value="msg" @onchange="SelectionChanged" checked=@(resultAs.Equals("msg",StringComparison.OrdinalIgnoreCase)) />
+                                    <span class="font-weight-bold"> Wyświetl odszyfrowaną wiadomość </span>
+                                    <small style="display: block;">* wiadomość zostanie wyświetlona w tym oknie</small>
+                                </label>
+                                <label class="radio inline" style="cursor: pointer;">
+                                    <input type="radio" name="resultAs" id="resultAs-email" value="email" @onchange="SelectionChanged" checked=@(resultAs.Equals("email",StringComparison.OrdinalIgnoreCase)) />
+                                    <span class="font-weight-bold">Wyślij odszyfrowaną wiadomość na podany adres </span>
+                                    <small style="display: block;">* wiadomość zostanie odszyfrowana i wysłana na adres email podany w formularzu</small>
+                                </label>
+                            </div>
+                        </div>
+                        <input type="submit" class="btn-cypher btn-cypher-send" value="Odszyfruj!" />
+                    </EditForm>
+                </div>
+            }
+
+        </div>
+    </div>
+
+<CypherK_BlazorApp.Shared.Modal @ref="Modal"></CypherK_BlazorApp.Shared.Modal>
+
+
+@code {
+
+    private CypherK_BlazorApp.Shared.Modal Modal { get; set; }
+
+    private DecryptViewModel vm = new DecryptViewModel();
+    private CryptoService cs = new CryptoService();
+    string resultAs = "msg";
+    bool loading = false;
+    string decryptedPreview = "";
+    bool showReceiverEmail = false;
+
+    private async Task HandleValidSubmit()
+    {
+        loading = true;
+
+        await Task.Delay(3000);
+        decryptedPreview = await Task.Run(() => cs.DecryptAesAsync(vm.TextToDecrypt, vm.CypherKey));
+        vm.TextToDecrypt = decryptedPreview;
+
+        loading = false;
+    }
+
+    private async Task PreviewSubmit()
+    {
+        loading = true;
+        await Task.Delay(1000);
+        decryptedPreview = await Task.Run(() => cs.EncryptAesAsync(vm.TextToDecrypt, vm.CypherKey));
+        loading = false;
+        Modal.Title = "Podgląd zaszyfrowanego tekstu.";
+        Modal.Body = decryptedPreview;
+        Modal.BtnCloseText = "Zamknij podgląd";
+        Modal.Open();
+    }
+
+    void SelectionChanged(ChangeEventArgs args)
+    {
+        resultAs = args.Value.ToString();
+        if (resultAs.Equals("email", StringComparison.OrdinalIgnoreCase))
+        {
+            showReceiverEmail = true;
+        }
+        else
+        {
+            showReceiverEmail = false;
+        }
+    }
+
+    private async Task<string> GetDecryptedText(string text, string key)
+    {
+        switch (vm.SelectedAlgorithm)
+        {
+            case "bacon":
+                return await Task.Run(() => cs.EncryptBaconAsync(text, key));
+            case "cezar":
+                return await Task.Run(() => cs.EncryptCezarAsync(text, key));
+            case "aes":
+                return await Task.Run(() => cs.EncryptAesAsync(text, key));
+            default:
+                return await Task.Run(() => cs.DecryptAsync(text, key));
+        }
+    }
+
+
+}
